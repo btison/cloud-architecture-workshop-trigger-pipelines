@@ -1,7 +1,9 @@
 package org.globex.retail.kubernetes;
 
 import io.fabric8.kubernetes.client.KubernetesClient;
+import io.fabric8.kubernetes.client.dsl.Resource;
 import io.fabric8.tekton.client.TektonClient;
+import io.fabric8.tekton.triggers.v1beta1.EventListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -14,6 +16,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -41,6 +44,8 @@ public class KubernetesRunner {
 
         String eventListenerService = System.getenv().getOrDefault("EVENTLISTENER_SERVICE", "http://el-upload-cms:8080");
 
+        String eventListenerName = System.getenv().getOrDefault("EVENTLISTENER", "upload-cms");
+
         String pipelineRunPrefix = System.getenv().getOrDefault("PIPELINE_RUN_PREFIX", "upload-cms-run-");
 
         String countStr = System.getenv("COUNT");
@@ -59,6 +64,15 @@ public class KubernetesRunner {
         long maxTimeToWait = Long.parseLong(maxTimeToWaitStr);
         long interval = Long.parseLong(intervalStr);
 
+        //wait until eventlistener is avalable
+        Resource<EventListener> eventListener = tektonClient.v1beta1().eventListeners().inNamespace(namespace).withName(eventListenerName);
+        try {
+            eventListener.waitUntilCondition(Objects::nonNull, maxTimeToWait, TimeUnit.MILLISECONDS);
+        } catch (Exception e) {
+            LOGGER.error("Event Listener " + eventListenerName + " is not ready after " + maxTimeToWaitStr + " milliseconds. Exiting...");
+            return -1;
+        }
+        
         ScheduledExecutorService ses = Executors.newSingleThreadScheduledExecutor();
         boolean eventListenerError = false;
         boolean pipelineRunError = false;
