@@ -1,9 +1,9 @@
 package org.globex.retail.kubernetes;
 
+import io.fabric8.kubernetes.api.model.Service;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.dsl.Resource;
 import io.fabric8.tekton.client.TektonClient;
-import io.fabric8.tekton.triggers.v1beta1.EventListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -64,16 +64,18 @@ public class KubernetesRunner {
         long maxTimeToWait = Long.parseLong(maxTimeToWaitStr);
         long interval = Long.parseLong(intervalStr);
 
-        //wait until eventlistener is avalable
-        Resource<EventListener> eventListener = tektonClient.v1beta1().eventListeners().inNamespace(namespace).withName(eventListenerName);
+        ScheduledExecutorService ses = Executors.newSingleThreadScheduledExecutor();
+
+        //wait until pipeline is available
+        String eventListenerServiceName = "el-" + eventListenerName;
+        Resource<Service> service = client.services().inNamespace(namespace).withName(eventListenerServiceName);
         try {
-            eventListener.waitUntilCondition(Objects::nonNull, maxTimeToWait, TimeUnit.MILLISECONDS);
+            service.waitUntilCondition(Objects::nonNull, maxTimeToWait, TimeUnit.MILLISECONDS);
         } catch (Exception e) {
-            LOGGER.error("Event Listener " + eventListenerName + " is not ready after " + maxTimeToWaitStr + " milliseconds. Exiting...");
+            LOGGER.error("Event Listener Service " + eventListenerServiceName + " is not ready after " + maxTimeToWaitStr + " milliseconds. Exiting...");
             return -1;
         }
 
-        ScheduledExecutorService ses = Executors.newSingleThreadScheduledExecutor();
         boolean eventListenerError = false;
         boolean pipelineRunError = false;
         for (int i = countStart; i <= count; i++) {

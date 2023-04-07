@@ -43,6 +43,16 @@
     <dependency>
       <groupId>io.fabric8</groupId>
       <artifactId>tekton-client</artifactId>
+      <exclusions>
+        <exclusion>
+          <artifactId>tekton-model-triggers-v1alpha1</artifactId>
+          <groupId>io.fabric8</groupId>
+        </exclusion>
+        <exclusion>
+          <artifactId>tekton-model-v1alpha1</artifactId>
+          <groupId>io.fabric8</groupId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>io.quarkus</groupId>
