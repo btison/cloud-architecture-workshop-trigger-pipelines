@@ -42,9 +42,9 @@ public class KubernetesRunner {
             return -1;
         }
 
-        String eventListenerService = System.getenv().getOrDefault("EVENTLISTENER_SERVICE", "http://el-upload-cms:8080");
-
         String eventListenerName = System.getenv().getOrDefault("EVENTLISTENER", "upload-cms");
+
+        String eventListenerService = System.getenv().getOrDefault("EVENTLISTENER_SERVICE", "http://el-" + eventListenerName + ":8080");
 
         String pipelineRunPrefix = System.getenv().getOrDefault("PIPELINE_RUN_PREFIX", "upload-cms-run-");
 
@@ -72,7 +72,7 @@ public class KubernetesRunner {
             LOGGER.error("Event Listener " + eventListenerName + " is not ready after " + maxTimeToWaitStr + " milliseconds. Exiting...");
             return -1;
         }
-        
+
         ScheduledExecutorService ses = Executors.newSingleThreadScheduledExecutor();
         boolean eventListenerError = false;
         boolean pipelineRunError = false;
