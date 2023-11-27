@@ -2,6 +2,7 @@ package org.globex.retail.kubernetes;
 
 import io.fabric8.kubernetes.api.model.Service;
 import io.fabric8.kubernetes.client.KubernetesClient;
+import io.fabric8.kubernetes.client.dsl.PodResource;
 import io.fabric8.kubernetes.client.dsl.Resource;
 import io.fabric8.tekton.client.TektonClient;
 import org.slf4j.Logger;
@@ -12,11 +13,14 @@ import javax.inject.Inject;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -76,11 +80,34 @@ public class KubernetesRunner {
             return -1;
         }
 
+        Map<String, String> selector = service.get().getSpec().getSelector();
+        Optional<PodResource> pods = client.pods().inNamespace(namespace).withLabels(selector).resources().findAny();
+
+        if (pods.isEmpty()) {
+            LOGGER.error("No pods found for Event Listener Service " + eventListenerServiceName + ". Exiting...");
+            return -1;
+        }
+
+        try {
+            pods.get().waitUntilCondition(pod -> pod.getStatus().getContainerStatuses().stream()
+                    .allMatch(containerStatus -> containerStatus.getReady() && containerStatus.getStarted()), maxTimeToWait, TimeUnit.MILLISECONDS);
+        } catch (Exception e) {
+            LOGGER.error("Event Listener Pod is not ready after " + maxTimeToWaitStr + " milliseconds. Exiting...");
+            return -1;
+        }
+
+        URL url;
+        try {
+            url = new URL(eventListenerService);
+        } catch (MalformedURLException e) {
+            LOGGER.error("Error building URL for the Event Listener Service. Exiting...");
+            return -1;
+        }
+
         boolean eventListenerError = false;
         boolean pipelineRunError = false;
         for (int i = countStart; i <= count; i++) {
             try {
-                URL url = new URL(eventListenerService);
                 HttpURLConnection con = (HttpURLConnection) url.openConnection();
                 con.setRequestMethod("POST");
                 con.setRequestProperty("Content-Type", "application/json");
@@ -129,5 +156,4 @@ public class KubernetesRunner {
 
         return 0;
     }
-
 }
